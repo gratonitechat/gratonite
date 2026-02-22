@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "test": "vitest run",
+    "test:ci": "vitest run --passWithNoTests",
     "test:watch": "vitest",
+    "seed:cosmetics-assets": "node scripts/seed-cosmetics-assets.mjs",
     "clean": "rm -rf dist"
   },
   "dependencies": {

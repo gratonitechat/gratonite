@@ -7,5 +7,9 @@ export function useUnreadBadge() {
 
   useEffect(() => {
     setDesktopBadge(unreadCount);
+    if (typeof document !== 'undefined') {
+      const baseTitle = 'Gratonite';
+      document.title = unreadCount > 0 ? `(${unreadCount}) ${baseTitle}` : baseTitle;
+    }
   }, [unreadCount]);
 }

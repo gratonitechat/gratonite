@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -9,18 +9,33 @@ import { useUnreadStore } from '@/stores/unread.store';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { getErrorMessage } from '@/lib/utils';
+import { shouldEnableUiV2Tokens } from '@/theme/initTheme';
+import { ServerGallery } from '@/components/home/ServerGallery';
+import { usePresenceStore } from '@/stores/presence.store';
 import type { Channel } from '@gratonite/types';
 
 type Relationship = { userId: string; targetId: string; type: string };
-type DmChannel = { id: string; type: 'dm' | 'group_dm'; name: string | null; lastMessageId: string | null };
+type DmChannel = { id: string; type: 'dm' | 'group_dm'; name: string | null; lastMessageId: string | null; otherUserId?: string | null };
+
+function parseOrderId(value: string | null | undefined): bigint {
+  if (!value) return 0n;
+  try {
+    return BigInt(value);
+  } catch {
+    return 0n;
+  }
+}
 
 export function HomePage() {
+  const uiV2TokensEnabled = shouldEnableUiV2Tokens();
   const guildCount = useGuildsStore((s) => s.guildOrder.length);
   const addChannel = useChannelsStore((s) => s.addChannel);
   const channels = useChannelsStore((s) => s.channels);
   const unreadByChannel = useUnreadStore((s) => s.unreadByChannel);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const dmPanelRef = useRef<HTMLElement | null>(null);
+  const presenceMap = usePresenceStore((s) => s.byUserId);
 
   const [friendId, setFriendId] = useState('');
   const [actionError, setActionError] = useState('');
@@ -49,6 +64,56 @@ export function HomePage() {
     }
     return buckets;
   }, [relationships]);
+
+  const userIds = useMemo(() => {
+    const ids = new Set<string>();
+    relationships.forEach((rel) => {
+      ids.add(rel.targetId);
+      ids.add(rel.userId);
+    });
+    dmChannels.forEach((dm) => {
+      if (dm.otherUserId) ids.add(dm.otherUserId);
+    });
+    return Array.from(ids).filter(Boolean);
+  }, [relationships, dmChannels]);
+
+  const { data: userSummaries = [] } = useQuery({
+    queryKey: ['users', 'summaries', userIds],
+    queryFn: () => api.users.getSummaries(userIds),
+    enabled: userIds.length > 0,
+  });
+
+  useQuery({
+    queryKey: ['users', 'presences', userIds],
+    queryFn: async () => {
+      const rows = await api.users.getPresences(userIds);
+      usePresenceStore.getState().setMany(rows.map((row) => ({
+        userId: row.userId,
+        status: row.status === 'invisible' ? 'offline' : row.status,
+        lastSeen: row.lastSeen,
+      })));
+      return rows;
+    },
+    enabled: userIds.length > 0,
+    staleTime: 15_000,
+  });
+
+  const userMap = useMemo(() => {
+    const map = new Map<string, { username: string; displayName: string }>();
+    userSummaries.forEach((u) => map.set(u.id, { username: u.username, displayName: u.displayName }));
+    return map;
+  }, [userSummaries]);
+
+  const sortedDmChannels = useMemo(() => {
+    return [...dmChannels].sort((a, b) => {
+      const aLast = channels.get(a.id)?.lastMessageId ?? a.lastMessageId;
+      const bLast = channels.get(b.id)?.lastMessageId ?? b.lastMessageId;
+      const aOrder = parseOrderId(aLast);
+      const bOrder = parseOrderId(bLast);
+      if (aOrder !== bOrder) return bOrder > aOrder ? 1 : -1;
+      return (a.name ?? '').localeCompare(b.name ?? '');
+    });
+  }, [channels, dmChannels]);
 
   useEffect(() => {
     let added = false;
@@ -136,6 +201,7 @@ export function HomePage() {
     setActionError('');
     try {
       const dm = await api.relationships.openDm(userId);
+      getSocket()?.emit('CHANNEL_SUBSCRIBE', { channelId: dm.id });
       const channel: Channel = {
         id: dm.id,
         guildId: null,
@@ -163,9 +229,16 @@ export function HomePage() {
     }
   }
 
+  function handleOpenDirectMessagesHub() {
+    if (!dmPanelRef.current) return;
+    dmPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   return (
     <div className="home-page">
-      <div className="home-content">
+      <div className={`home-content ${uiV2TokensEnabled ? 'home-content-v2' : ''}`}>
+        {uiV2TokensEnabled && <ServerGallery onOpenDirectMessages={handleOpenDirectMessagesHub} />}
+
         <div className="home-hero">
           <img
             src="/gratonite-mascot.png"
@@ -179,7 +252,7 @@ export function HomePage() {
             <p className="home-subtitle">
               {guildCount > 0
                 ? 'Keep your crew close — start a DM or manage requests.'
-                : 'Join or create a server, and start a direct message from here.'}
+                : 'Join or create a portal, and start a direct message from here.'}
             </p>
           </div>
         </div>
@@ -187,14 +260,14 @@ export function HomePage() {
         <div className="friends-grid">
           <section className="friends-panel">
             <h2>Start a Friend Request</h2>
-            <p>Enter a user ID to send a request.</p>
+            <p>Enter a username or user ID to send a request.</p>
             <div className="friends-form">
               <Input
-                label="User ID"
+                label="Username or ID"
                 type="text"
                 value={friendId}
                 onChange={(e) => setFriendId(e.target.value)}
-                placeholder="1234567890"
+                placeholder="username or 1234567890"
               />
               <Button onClick={handleSendRequest} loading={actionLoading} disabled={!friendId.trim()}>
                 Send Request
@@ -203,17 +276,30 @@ export function HomePage() {
             {actionError && <div className="home-error">{actionError}</div>}
           </section>
 
-          <section className="friends-panel">
+          <section className="friends-panel" ref={dmPanelRef}>
             <h2>Direct Messages</h2>
             <p>{dmLoading ? 'Loading DMs...' : 'Jump into a DM channel.'}</p>
             <div className="friends-list">
-              {dmChannels.length === 0 && !dmLoading && (
+              {sortedDmChannels.length === 0 && !dmLoading && (
                 <div className="friends-empty">No DM channels yet.</div>
               )}
-              {dmChannels.map((dm) => (
+              {sortedDmChannels.map((dm) => (
                 <div key={dm.id} className="friends-item">
                   <div>
-                    <span className="friends-name">{dm.name ?? 'Direct Message'}</span>
+                    {(() => {
+                      const status = dm.otherUserId ? (presenceMap.get(dm.otherUserId)?.status ?? 'offline') : 'offline';
+                      return (
+                        <span className={`friends-presence friends-presence-${status}`}>
+                          <span className={`presence-dot presence-${status}`} />
+                          {status === 'idle' ? 'Away' : status === 'dnd' ? 'Do Not Disturb' : status === 'offline' ? 'Offline' : 'Online'}
+                        </span>
+                      );
+                    })()}
+                    <span className="friends-name">
+                      {dm.name
+                        ?? (dm.otherUserId ? (userMap.get(dm.otherUserId)?.displayName ?? userMap.get(dm.otherUserId)?.username) : null)
+                        ?? 'Direct Message'}
+                    </span>
                     <span className="friends-meta">Channel ID: {dm.id}</span>
                   </div>
                   <div className="friends-actions">
@@ -235,7 +321,20 @@ export function HomePage() {
               {(relByType['friend'] ?? []).map((rel) => (
                 <div key={`${rel.userId}-${rel.targetId}`} className="friends-item">
                   <div>
-                    <span className="friends-name">User {rel.targetId}</span>
+                    {(() => {
+                      const status = presenceMap.get(rel.targetId)?.status ?? 'offline';
+                      return (
+                        <span className={`friends-presence friends-presence-${status}`}>
+                          <span className={`presence-dot presence-${status}`} />
+                          {status === 'idle' ? 'Away' : status === 'dnd' ? 'Do Not Disturb' : status === 'offline' ? 'Offline' : 'Online'}
+                        </span>
+                      );
+                    })()}
+                    <span className="friends-name">
+                      {userMap.get(rel.targetId)?.displayName
+                        ?? userMap.get(rel.targetId)?.username
+                        ?? `User ${rel.targetId}`}
+                    </span>
                     <span className="friends-meta">Friend</span>
                   </div>
                   <div className="friends-actions">
@@ -244,6 +343,7 @@ export function HomePage() {
                   </div>
                 </div>
               ))}
+              {actionError && <div className="home-error">{actionError}</div>}
             </div>
           </section>
 
@@ -254,7 +354,11 @@ export function HomePage() {
               {(relByType['pending_incoming'] ?? []).map((rel) => (
                 <div key={`incoming-${rel.targetId}`} className="friends-item">
                   <div>
-                    <span className="friends-name">User {rel.targetId}</span>
+                    <span className="friends-name">
+                      {userMap.get(rel.targetId)?.displayName
+                        ?? userMap.get(rel.targetId)?.username
+                        ?? `User ${rel.targetId}`}
+                    </span>
                     <span className="friends-meta">Incoming request</span>
                   </div>
                   <div className="friends-actions">
@@ -266,7 +370,11 @@ export function HomePage() {
               {(relByType['pending_outgoing'] ?? []).map((rel) => (
                 <div key={`outgoing-${rel.targetId}`} className="friends-item">
                   <div>
-                    <span className="friends-name">User {rel.targetId}</span>
+                    <span className="friends-name">
+                      {userMap.get(rel.targetId)?.displayName
+                        ?? userMap.get(rel.targetId)?.username
+                        ?? `User ${rel.targetId}`}
+                    </span>
                     <span className="friends-meta">Outgoing request</span>
                   </div>
                   <Button size="sm" variant="ghost" onClick={() => handleRemove(rel.targetId)}>Cancel</Button>
@@ -290,7 +398,11 @@ export function HomePage() {
               {(relByType['blocked'] ?? []).map((rel) => (
                 <div key={`blocked-${rel.targetId}`} className="friends-item">
                   <div>
-                    <span className="friends-name">User {rel.targetId}</span>
+                    <span className="friends-name">
+                      {userMap.get(rel.targetId)?.displayName
+                        ?? userMap.get(rel.targetId)?.username
+                        ?? `User ${rel.targetId}`}
+                    </span>
                     <span className="friends-meta">Blocked</span>
                   </div>
                   <Button size="sm" variant="ghost" onClick={() => handleUnblock(rel.targetId)}>Unblock</Button>

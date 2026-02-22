@@ -7,10 +7,15 @@ import { CreateGuildModal } from '@/components/modals/CreateGuildModal';
 import { CreateChannelModal } from '@/components/modals/CreateChannelModal';
 import { InviteModal } from '@/components/modals/InviteModal';
 import { LeaveGuildModal } from '@/components/modals/LeaveGuildModal';
+import { DeleteGuildModal } from '@/components/modals/DeleteGuildModal';
+import { DeleteChannelModal } from '@/components/modals/DeleteChannelModal';
 import { DeleteMessageModal } from '@/components/modals/DeleteMessageModal';
 import { EditProfileModal } from '@/components/modals/EditProfileModal';
 import { EditServerProfileModal } from '@/components/modals/EditServerProfileModal';
 import { CreateThreadModal } from '@/components/modals/CreateThreadModal';
+import { ServerSettingsModal } from '@/components/modals/ServerSettingsModal';
+import { EmojiStudioModal } from '@/components/modals/EmojiStudioModal';
+import { BugReportModal } from '@/components/modals/BugReportModal';
 import { DmCallOverlay } from '@/components/call/DmCallOverlay';
 import { DmIncomingCallModal } from '@/components/call/DmIncomingCallModal';
 import { DmInfoPanel } from '@/components/messages/DmInfoPanel';
@@ -53,9 +58,14 @@ export function AppLayout() {
       {activeModal === 'create-channel' && <CreateChannelModal />}
       {activeModal === 'invite' && <InviteModal />}
       {activeModal === 'leave-guild' && <LeaveGuildModal />}
+      {activeModal === 'delete-guild' && <DeleteGuildModal />}
+      {activeModal === 'delete-channel' && <DeleteChannelModal />}
       {activeModal === 'delete-message' && <DeleteMessageModal />}
       {activeModal === 'edit-profile' && <EditProfileModal />}
       {activeModal === 'edit-server-profile' && <EditServerProfileModal />}
+      {activeModal === 'server-settings' && <ServerSettingsModal />}
+      {activeModal === 'emoji-studio' && <EmojiStudioModal />}
+      {activeModal === 'bug-report' && <BugReportModal />}
       {activeModal === 'create-thread' && <CreateThreadModal />}
       <DmCallOverlay />
       <DmIncomingCallModal />

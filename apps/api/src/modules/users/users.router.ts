@@ -4,6 +4,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import { eq } from 'drizzle-orm';
 import { users, userProfiles, userSettings } from '@gratonite/db';
+import { inArray } from 'drizzle-orm';
 import { createDndService } from './dnd.service.js';
 import type { AppContext } from '../../lib/context.js';
 import { requireAuth } from '../../middleware/auth.js';
@@ -24,6 +25,50 @@ const bannerUpload = multer({
 export function usersRouter(ctx: AppContext): Router {
   const router = Router();
   const auth = requireAuth(ctx);
+  const allowedPresenceStatuses = new Set(['online', 'idle', 'dnd', 'invisible']);
+
+  // ── GET /api/v1/users (batch summary) ─────────────────────────────────
+  // ids=comma-separated list of user IDs
+  router.get('/', auth, async (req, res) => {
+    try {
+      const idsParam = String(req.query['ids'] ?? '').trim();
+      if (!idsParam) {
+        res.json([]);
+        return;
+      }
+      const ids = idsParam.split(',').map((id) => id.trim()).filter(Boolean);
+      if (ids.length === 0) {
+        res.json([]);
+        return;
+      }
+      if (ids.length > 100) {
+        res.status(400).json({ code: 'TOO_MANY_IDS', message: 'Max 100 ids per request' });
+        return;
+      }
+
+      const bigintIds = ids.map((id) => BigInt(id));
+      const rows = await ctx.db
+        .select({
+          id: users.id,
+          username: users.username,
+          displayName: userProfiles.displayName,
+          avatarHash: userProfiles.avatarHash,
+        })
+        .from(users)
+        .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+        .where(inArray(users.id, bigintIds));
+
+      res.json(rows.map((row) => ({
+        id: row.id.toString(),
+        username: row.username,
+        displayName: row.displayName,
+        avatarHash: row.avatarHash,
+      })));
+    } catch (err) {
+      logger.error({ err }, 'Error fetching user summaries');
+      res.status(500).json({ code: 'INTERNAL_ERROR', message: 'An error occurred' });
+    }
+  });
 
   // ── GET /api/v1/users/@me ──────────────────────────────────────────────
   // Returns the current authenticated user's profile
@@ -73,6 +118,9 @@ export function usersRouter(ctx: AppContext): Router {
               accentColor: profile.accentColor,
               bio: profile.bio,
               pronouns: profile.pronouns,
+              avatarDecorationId: profile.avatarDecorationId?.toString() ?? null,
+              profileEffectId: profile.profileEffectId?.toString() ?? null,
+              nameplateId: profile.nameplateId?.toString() ?? null,
               themePreference: profile.themePreference,
               tier: profile.tier,
             }
@@ -96,6 +144,41 @@ export function usersRouter(ctx: AppContext): Router {
         code: 'INTERNAL_ERROR',
         message: 'An error occurred',
       });
+    }
+  });
+
+  // ── GET /api/v1/users/presences (batch) ────────────────────────────────
+  router.get('/presences', auth, async (req, res) => {
+    try {
+      const idsParam = String(req.query.ids ?? '').trim();
+      if (!idsParam) return res.json([]);
+
+      const ids = idsParam.split(',').map((id) => id.trim()).filter(Boolean);
+      if (ids.length === 0) return res.json([]);
+      if (ids.length > 100) {
+        return res.status(400).json({ code: 'TOO_MANY_IDS', message: 'Max 100 ids per request' });
+      }
+
+      const presences = await Promise.all(
+        ids.map(async (userId) => {
+          const [presence, isOnline] = await Promise.all([
+            ctx.redis.hgetall(`presence:${userId}`),
+            ctx.redis.sismember('online_users', userId),
+          ]);
+          const rawStatus = String(presence['status'] ?? '').trim();
+          const status = rawStatus || (isOnline ? 'online' : 'offline');
+          return {
+            userId,
+            status: status === 'invisible' ? 'offline' : status,
+            lastSeen: presence['lastSeen'] ? Number(presence['lastSeen']) : null,
+          };
+        }),
+      );
+
+      res.json(presences);
+    } catch (err) {
+      logger.error({ err }, 'Error fetching presences');
+      res.status(500).json({ code: 'INTERNAL_ERROR', message: 'An error occurred' });
     }
   });
 
@@ -183,6 +266,26 @@ export function usersRouter(ctx: AppContext): Router {
         code: 'INTERNAL_ERROR',
         message: 'An error occurred',
       });
+    }
+  });
+
+  // ── PATCH /api/v1/users/@me/presence ───────────────────────────────────
+  router.patch('/@me/presence', auth, async (req, res) => {
+    try {
+      const status = String(req.body?.['status'] ?? '').trim();
+      if (!allowedPresenceStatuses.has(status)) {
+        return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'Invalid presence status' });
+      }
+
+      await ctx.redis.hset(`presence:${req.user!.userId}`, {
+        status,
+        lastSeen: Date.now().toString(),
+      });
+
+      res.json({ status });
+    } catch (err) {
+      logger.error({ err }, 'Error updating presence');
+      res.status(500).json({ code: 'INTERNAL_ERROR', message: 'An error occurred' });
     }
   });
 

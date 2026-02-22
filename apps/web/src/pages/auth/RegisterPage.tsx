@@ -104,7 +104,7 @@ export function RegisterPage() {
         tier: me.profile.tier,
       });
 
-      navigate('/', { replace: true });
+      navigate('/app', { replace: true });
     } catch (err) {
       if (err instanceof ApiRequestError && err.details) {
         setFieldErrors(err.details);

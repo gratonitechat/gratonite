@@ -97,6 +97,19 @@ export function TopBar({ channelId }: TopBarProps) {
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </button>
+        <button
+          className="topbar-btn"
+          onClick={() => openModal('bug-report', { route: window.location.pathname, channelLabel })}
+          title="Report bug"
+          aria-label="Report bug"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 2h8" />
+            <path d="M9 2v3.5l-2 2V11H5l-2 2 2 2h2v3.5l2 2V22h6v-1.5l2-2V15h2l2-2-2-2h-2V7.5l-2-2V2" />
+            <circle cx="10" cy="10" r="1" />
+            <circle cx="14" cy="14" r="1" />
+          </svg>
+        </button>
         {showMembersToggle && (
           <button className="topbar-btn" onClick={toggleMemberPanel} title="Toggle member list">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

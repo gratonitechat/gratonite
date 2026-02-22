@@ -184,7 +184,7 @@ export function EditProfileModal() {
               )}
               <div>
                 <div className="profile-media-title">Default Avatar</div>
-                <div className="profile-media-subtitle">Used unless overridden per server.</div>
+                <div className="profile-media-subtitle">Used unless overridden per portal.</div>
               </div>
             </div>
             <div className="profile-media-actions">
@@ -252,7 +252,7 @@ export function EditProfileModal() {
         />
 
         <div className="profile-avatar-note">
-          Per-server nickname, avatar, and banner overrides live in the server profile menu.
+          Per-portal nickname, avatar, and banner overrides live in the portal profile menu.
         </div>
 
         <div className="modal-footer">

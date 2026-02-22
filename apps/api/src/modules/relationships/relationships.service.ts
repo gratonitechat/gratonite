@@ -264,11 +264,27 @@ export function createRelationshipsService(ctx: AppContext) {
       .from(dmChannels)
       .where(inArray(dmChannels.id, channelIds));
 
+    const recipients = await ctx.db
+      .select({ channelId: dmRecipients.channelId, userId: dmRecipients.userId })
+      .from(dmRecipients)
+      .where(inArray(dmRecipients.channelId, channelIds));
+
+    const otherRecipientMap = new Map<string, string>();
+    for (const row of recipients) {
+      if (row.userId.toString() === userId) continue;
+      if (!otherRecipientMap.has(row.channelId)) {
+        otherRecipientMap.set(row.channelId, row.userId.toString());
+      }
+    }
+
     for (const dmChannel of channelsList) {
       await ensureDmChannelRow(dmChannel as any);
     }
 
-    return channelsList;
+    return channelsList.map((dm) => ({
+      ...dm,
+      otherUserId: dm.type === 'dm' ? (otherRecipientMap.get(dm.id) ?? null) : null,
+    }));
   }
 
   async function createGroupDm(ownerId: string, recipientIds: string[], name?: string) {

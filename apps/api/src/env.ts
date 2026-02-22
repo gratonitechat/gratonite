@@ -43,7 +43,13 @@ const envSchema = z.object({
     .default('http://localhost:4000/api/v1/auth/google/callback'),
 
   // CORS
-  CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  CORS_ORIGIN: z
+    .string()
+    .default('http://localhost:5173,http://127.0.0.1:4173,http://localhost:4173'),
+  COMMUNITY_SHOP_MODERATOR_IDS: z.string().default(''),
+  ECONOMY_AUDITOR_IDS: z.string().default(''),
+  BUG_REPORT_ADMIN_USER_IDS: z.string().default(''),
+  BUG_REPORT_ADMIN_USERNAMES: z.string().default('ferdinand'),
 
   // CDN
   CDN_BASE_URL: z.string().default('http://localhost:9000'),

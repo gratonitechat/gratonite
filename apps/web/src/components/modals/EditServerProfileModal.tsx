@@ -17,7 +17,7 @@ export function EditServerProfileModal() {
   const guilds = useGuildsStore((s) => s.guilds);
 
   const guildId = (modalData?.['guildId'] as string | undefined) ?? undefined;
-  const guildName = guildId ? guilds.get(guildId)?.name ?? 'Server' : 'Server';
+  const guildName = guildId ? guilds.get(guildId)?.name ?? 'Portal' : 'Portal';
 
   const [nickname, setNickname] = useState('');
   const [bio, setBio] = useState('');
@@ -138,7 +138,7 @@ export function EditServerProfileModal() {
   }
 
   return (
-    <Modal id="edit-server-profile" title={`${guildName} Profile`} onClose={handleClose} size="md">
+    <Modal id="edit-server-profile" title={`${guildName} Portal Profile`} onClose={handleClose} size="md">
       <form className="modal-form" onSubmit={handleSubmit}>
         {error && <div className="modal-error">{error}</div>}
 
@@ -152,7 +152,7 @@ export function EditServerProfileModal() {
             />
           )}
           <div className="profile-modal-header-text">
-            <span className="profile-modal-name">Server Profile</span>
+            <span className="profile-modal-name">Portal Profile</span>
             <span className="profile-modal-subtitle">Overrides your defaults in {guildName}.</span>
           </div>
         </div>
@@ -174,7 +174,7 @@ export function EditServerProfileModal() {
               className="input-field profile-bio-input"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              placeholder="Server-specific bio"
+              placeholder="Portal-specific bio"
               maxLength={190}
               rows={3}
               disabled={loadingProfile}
@@ -194,7 +194,7 @@ export function EditServerProfileModal() {
                 />
               )}
               <div>
-                <div className="profile-media-title">Server Avatar</div>
+                <div className="profile-media-title">Portal Avatar</div>
                 <div className="profile-media-subtitle">Only visible in {guildName}.</div>
               </div>
             </div>

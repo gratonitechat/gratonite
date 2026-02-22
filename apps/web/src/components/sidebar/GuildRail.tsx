@@ -15,7 +15,7 @@ export function GuildRail() {
   return (
     <nav className="guild-rail">
       {/* Home button */}
-      <NavLink to="/" className="guild-rail-item guild-rail-home" end>
+      <NavLink to="/app" className="guild-rail-item guild-rail-home" end>
         <div className="guild-rail-icon guild-rail-home-icon">
           <img src="/gratonite-icon.png" alt="Gratonite" width={28} height={28} />
         </div>

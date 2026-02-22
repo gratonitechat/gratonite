@@ -72,39 +72,55 @@ export function relationshipsRouter(ctx: AppContext): Router {
       ctx.io.to(`user:${req.user!.userId}`).emit('USER_UPDATE', { userId: req.user!.userId, friendAdded: targetId } as any);
       ctx.io.to(`user:${targetId}`).emit('USER_UPDATE', { userId: targetId, friendAdded: req.user!.userId } as any);
     }
+    if ('sent' in result) {
+      ctx.io.to(`user:${req.user!.userId}`).emit('USER_UPDATE', { userId: req.user!.userId, relationshipChanged: true } as any);
+      ctx.io.to(`user:${targetId}`).emit('USER_UPDATE', { userId: targetId, relationshipChanged: true } as any);
+    }
 
     res.status(201).json(result);
   });
 
   // Accept friend request
   router.put('/friends/:userId', auth, async (req, res) => {
+    const fromUserId = req.params.userId;
     const result = await relService.acceptFriendRequest(
       req.user!.userId,
-      req.params.userId,
+      fromUserId,
     );
 
     if ('error' in result) {
       return res.status(404).json({ code: result.error });
     }
 
+    ctx.io.to(`user:${req.user!.userId}`).emit('USER_UPDATE', { userId: req.user!.userId, relationshipChanged: true } as any);
+    ctx.io.to(`user:${fromUserId}`).emit('USER_UPDATE', { userId: fromUserId, relationshipChanged: true } as any);
+
     res.json(result);
   });
 
   // Remove friend / decline request
   router.delete('/friends/:userId', auth, async (req, res) => {
-    await relService.removeFriend(req.user!.userId, req.params.userId);
+    const targetId = req.params.userId;
+    await relService.removeFriend(req.user!.userId, targetId);
+    ctx.io.to(`user:${req.user!.userId}`).emit('USER_UPDATE', { userId: req.user!.userId, relationshipChanged: true } as any);
+    ctx.io.to(`user:${targetId}`).emit('USER_UPDATE', { userId: targetId, relationshipChanged: true } as any);
     res.status(204).send();
   });
 
   // Block user
   router.put('/blocks/:userId', auth, async (req, res) => {
-    await relService.blockUser(req.user!.userId, req.params.userId);
+    const targetId = req.params.userId;
+    await relService.blockUser(req.user!.userId, targetId);
+    ctx.io.to(`user:${req.user!.userId}`).emit('USER_UPDATE', { userId: req.user!.userId, relationshipChanged: true } as any);
+    ctx.io.to(`user:${targetId}`).emit('USER_UPDATE', { userId: targetId, relationshipChanged: true } as any);
     res.status(204).send();
   });
 
   // Unblock user
   router.delete('/blocks/:userId', auth, async (req, res) => {
-    await relService.unblockUser(req.user!.userId, req.params.userId);
+    const targetId = req.params.userId;
+    await relService.unblockUser(req.user!.userId, targetId);
+    ctx.io.to(`user:${req.user!.userId}`).emit('USER_UPDATE', { userId: req.user!.userId, relationshipChanged: true } as any);
     res.status(204).send();
   });
 

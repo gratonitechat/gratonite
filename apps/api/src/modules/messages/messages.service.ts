@@ -14,6 +14,8 @@ import {
   scheduledMessages,
   users,
   userProfiles,
+  userRoles,
+  guildRoles,
 } from '@gratonite/db';
 import type { AppContext } from '../../lib/context.js';
 import { generateId } from '../../lib/snowflake.js';
@@ -54,10 +56,40 @@ export function createMessagesService(ctx: AppContext) {
 
     // Parse mentions from content
     const mentionMatches = content.match(/<@!?(\d+)>/g) ?? [];
-    const mentionIds = mentionMatches.map((m) => m.replace(/<@!?/, '').replace(/>/, ''));
+    let mentionIds = mentionMatches.map((m) => m.replace(/<@!?/, '').replace(/>/, ''));
     const mentionEveryone = content.includes('@everyone') || content.includes('@here');
     const roleMentionMatches = content.match(/<@&(\d+)>/g) ?? [];
     const roleMentionIds = roleMentionMatches.map((m) => m.replace(/<@&/, '').replace(/>/, ''));
+    if (guildId && roleMentionIds.length > 0) {
+      const validRoles = await ctx.db
+        .select({ id: guildRoles.id })
+        .from(guildRoles)
+        .where(
+          and(
+            eq(guildRoles.guildId, guildId),
+            inArray(guildRoles.id, roleMentionIds),
+            eq(guildRoles.mentionable, true),
+          ),
+        );
+      const validRoleIds = validRoles.map((row) => String(row.id));
+      if (validRoleIds.length > 0) {
+        const roleMembers = await ctx.db
+          .select({ userId: userRoles.userId })
+          .from(userRoles)
+          .where(
+            and(
+              eq(userRoles.guildId, guildId),
+              inArray(userRoles.roleId, validRoleIds),
+            ),
+          );
+        const merged = new Set(mentionIds);
+        for (const row of roleMembers) {
+          const id = String(row.userId);
+          if (id !== authorId) merged.add(id);
+        }
+        mentionIds = Array.from(merged);
+      }
+    }
 
     // Build message reference snapshot if replying
     let referencedMessage = null;
@@ -790,6 +822,35 @@ export function createMessagesService(ctx: AppContext) {
       .from(messageAttachments)
       .where(eq(messageAttachments.messageId, message.id));
 
+    const reactionsList = await ctx.db
+      .select({
+        messageId: messageReactions.messageId,
+        emoji: messageReactions.emojiName,
+        count: messageReactions.count,
+      })
+      .from(messageReactions)
+      .where(eq(messageReactions.messageId, message.id));
+
+    const reactionUsers = await ctx.db
+      .select({
+        messageId: messageReactionUsers.messageId,
+        emoji: messageReactionUsers.emojiName,
+        userId: messageReactionUsers.userId,
+      })
+      .from(messageReactionUsers)
+      .where(eq(messageReactionUsers.messageId, message.id));
+
+    const reactionsByEmoji = new Map<string, { emoji: string; count: number; userIds: string[] }>();
+    for (const r of reactionsList) {
+      reactionsByEmoji.set(r.emoji, { emoji: r.emoji, count: r.count, userIds: [] });
+    }
+    for (const ru of reactionUsers) {
+      const existing = reactionsByEmoji.get(ru.emoji)
+        ?? { emoji: ru.emoji, count: 0, userIds: [] };
+      existing.userIds.push(ru.userId.toString());
+      reactionsByEmoji.set(ru.emoji, existing);
+    }
+
     const poll = message.pollId ? await getPoll(message.pollId) : null;
 
     // Fetch author info
@@ -808,6 +869,7 @@ export function createMessagesService(ctx: AppContext) {
     return {
       ...message,
       attachments,
+      reactions: Array.from(reactionsByEmoji.values()),
       poll,
       author: authorRow ?? { id: message.authorId, username: 'Deleted User', displayName: 'Deleted User', avatarHash: null },
     };
@@ -868,9 +930,43 @@ export function createMessagesService(ctx: AppContext) {
       );
     }
 
+    // Fetch reactions
+    const reactions = await ctx.db
+      .select({
+        messageId: messageReactions.messageId,
+        emoji: messageReactions.emojiName,
+        count: messageReactions.count,
+      })
+      .from(messageReactions)
+      .where(inArray(messageReactions.messageId, messageIds));
+
+    const reactionUsers = await ctx.db
+      .select({
+        messageId: messageReactionUsers.messageId,
+        emoji: messageReactionUsers.emojiName,
+        userId: messageReactionUsers.userId,
+      })
+      .from(messageReactionUsers)
+      .where(inArray(messageReactionUsers.messageId, messageIds));
+
+    const reactionsByMessage = new Map<string, Map<string, { emoji: string; count: number; userIds: string[] }>>();
+    for (const r of reactions) {
+      const byEmoji = reactionsByMessage.get(r.messageId) ?? new Map();
+      byEmoji.set(r.emoji, { emoji: r.emoji, count: r.count, userIds: [] });
+      reactionsByMessage.set(r.messageId, byEmoji);
+    }
+    for (const ru of reactionUsers) {
+      const byEmoji = reactionsByMessage.get(ru.messageId) ?? new Map();
+      const existing = byEmoji.get(ru.emoji) ?? { emoji: ru.emoji, count: 0, userIds: [] };
+      existing.userIds.push(ru.userId.toString());
+      byEmoji.set(ru.emoji, existing);
+      reactionsByMessage.set(ru.messageId, byEmoji);
+    }
+
     return list.map((message) => ({
       ...message,
       attachments: attachmentsByMessage.get(message.id) ?? [],
+      reactions: Array.from(reactionsByMessage.get(message.id)?.values() ?? []),
       poll: message.pollId ? pollsById.get(message.pollId) ?? null : null,
       author: authorsById.get(message.authorId) ?? { ...deletedAuthor, id: message.authorId },
     }));

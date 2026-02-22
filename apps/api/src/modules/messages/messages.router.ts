@@ -12,7 +12,7 @@ import {
   getMessagesSchema,
   createScheduledMessageSchema,
 } from './messages.schemas.js';
-import { messages } from '@gratonite/db';
+import { messages, dmRecipients } from '@gratonite/db';
 import { and, eq } from 'drizzle-orm';
 import { createLinkPreviewService } from './link-preview.service.js';
 import { createAutoModService } from '../automod/automod.service.js';
@@ -34,6 +34,15 @@ export function messagesRouter(ctx: AppContext): Router {
   async function checkChannelAccess(channelId: string, userId: string) {
     const channel = await channelsService.getChannel(channelId);
     if (!channel) {
+      const [dmMembership] = await ctx.db
+        .select({ channelId: dmRecipients.channelId })
+        .from(dmRecipients)
+        .where(and(eq(dmRecipients.channelId, channelId), eq(dmRecipients.userId, userId)))
+        .limit(1);
+      if (dmMembership) {
+        return { id: channelId, guildId: null, type: 'DM' } as any;
+      }
+
       const thread = await threadsService.getThread(channelId);
       if (!thread) return null;
       const isMember = await guildsService.isMember(thread.guildId, userId);
@@ -46,9 +55,21 @@ export function messagesRouter(ctx: AppContext): Router {
 
       return { id: thread.id, guildId: thread.guildId } as any;
     }
+
+    if (!channel.guildId && ['DM', 'GROUP_DM', 'dm', 'group_dm'].includes(String(channel.type))) {
+      const [dmMembership] = await ctx.db
+        .select({ channelId: dmRecipients.channelId })
+        .from(dmRecipients)
+        .where(and(eq(dmRecipients.channelId, channelId), eq(dmRecipients.userId, userId)))
+        .limit(1);
+      if (!dmMembership) return null;
+    }
+
     if (channel.guildId) {
       const isMember = await guildsService.isMember(channel.guildId, userId);
       if (!isMember) return null;
+      const canView = await channelsService.canAccessChannel(channel.id, userId);
+      if (!canView) return null;
     }
     return channel;
   }
@@ -465,20 +486,30 @@ export function messagesRouter(ctx: AppContext): Router {
       emojiName,
     );
 
-    if (added && channel.guildId) {
-      await emitRoomWithIntent(
-        ctx.io,
-        `guild:${channel.guildId}`,
-        GatewayIntents.GUILD_MESSAGES,
-        'MESSAGE_REACTION_ADD',
-        {
+    if (added) {
+      if (channel.guildId) {
+        await emitRoomWithIntent(
+          ctx.io,
+          `guild:${channel.guildId}`,
+          GatewayIntents.GUILD_MESSAGES,
+          'MESSAGE_REACTION_ADD',
+          {
+            messageId: req.params.messageId,
+            channelId,
+            userId: req.user!.userId,
+            emoji: { id: null, name: emojiName },
+            burst: false,
+          },
+        );
+      } else {
+        ctx.io.to(`channel:${channelId}`).emit('MESSAGE_REACTION_ADD', {
           messageId: req.params.messageId,
           channelId,
           userId: req.user!.userId,
           emoji: { id: null, name: emojiName },
           burst: false,
-        },
-      );
+        });
+      }
     }
 
     res.status(204).send();
@@ -510,6 +541,13 @@ export function messagesRouter(ctx: AppContext): Router {
           emoji: { id: null, name: emojiName },
         },
       );
+    } else {
+      ctx.io.to(`channel:${channelId}`).emit('MESSAGE_REACTION_REMOVE', {
+        messageId: req.params.messageId,
+        channelId,
+        userId: req.user!.userId,
+        emoji: { id: null, name: emojiName },
+      });
     }
 
     res.status(204).send();

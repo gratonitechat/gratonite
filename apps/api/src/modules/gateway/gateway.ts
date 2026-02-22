@@ -35,6 +35,7 @@ export function setupGateway(ctx: AppContext) {
 
   ctx.io.on('connection', (rawSocket: Socket) => {
     const socket = rawSocket as AuthenticatedSocket;
+    const allowedPresenceStatuses = new Set(['online', 'idle', 'dnd', 'invisible']);
     logger.debug({ socketId: socket.id }, 'Socket connected (unauthenticated)');
 
     // ── IDENTIFY — authenticate the socket connection ────────────────────
@@ -137,9 +138,23 @@ export function setupGateway(ctx: AppContext) {
         timestamp: Date.now(),
       };
 
-      const rooms = Array.from(socket.rooms).filter((r) => r.startsWith('guild:'));
-      for (const room of rooms) {
-        await emitRoomWithIntent(ctx.io, room, GatewayIntents.GUILD_MESSAGE_TYPING, 'TYPING_START', payload);
+      const channel = await channelsService.getChannel(data.channelId);
+      if (channel?.guildId) {
+        await emitRoomWithIntent(
+          ctx.io,
+          `guild:${channel.guildId}`,
+          GatewayIntents.GUILD_MESSAGE_TYPING,
+          'TYPING_START',
+          payload,
+        );
+      } else {
+        await emitRoomWithIntent(
+          ctx.io,
+          `channel:${data.channelId}`,
+          GatewayIntents.DIRECT_MESSAGES,
+          'TYPING_START',
+          payload,
+        );
       }
 
       // Also publish to Redis for multi-server
@@ -191,12 +206,23 @@ export function setupGateway(ctx: AppContext) {
 
     socket.on('PRESENCE_UPDATE', async (data: { status: string }) => {
       if (!socket.userId) return;
+      const status = String(data?.status ?? '').trim();
+      if (!allowedPresenceStatuses.has(status)) return;
 
       // Store presence in Redis
       await ctx.redis.hset(`presence:${socket.userId}`, {
-        status: data.status,
+        status,
         lastSeen: Date.now().toString(),
       });
+
+      const payload = {
+        userId: socket.userId,
+        status: status === 'invisible' ? 'offline' : status,
+        activities: [],
+        clientStatus: {
+          web: status,
+        },
+      };
 
       // Broadcast to all guilds the user is in
       const rooms = Array.from(socket.rooms).filter((r) => r.startsWith('guild:'));
@@ -206,12 +232,10 @@ export function setupGateway(ctx: AppContext) {
           room,
           GatewayIntents.GUILD_PRESENCES,
           'PRESENCE_UPDATE',
-          {
-            userId: socket.userId,
-            status: data.status,
-          },
+          payload,
         );
       }
+      ctx.io.to(`user:${socket.userId}`).emit('PRESENCE_UPDATE', payload as any);
     });
 
     // ── VOICE_STATE_UPDATE — join/leave/mute voice channels ─────────────────
@@ -450,6 +474,8 @@ export function setupGateway(ctx: AppContext) {
             {
               userId: socket.userId,
               status: 'offline',
+              activities: [],
+              clientStatus: { web: 'offline' },
             } as any,
           );
         }

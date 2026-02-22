@@ -50,6 +50,7 @@ export interface UserProfile {
   pronouns: string | null; // max 40 chars
   avatarDecorationId: Snowflake | null;
   profileEffectId: Snowflake | null;
+  nameplateId: Snowflake | null;
   themePreference: ThemePreference;
   tier: UserTier;
 }
@@ -200,6 +201,18 @@ export interface AvatarDecoration {
 }
 
 export interface ProfileEffect {
+  id: Snowflake;
+  name: string;
+  description: string | null;
+  assetHash: string;
+  animated: boolean;
+  category: string | null;
+  sortOrder: number;
+  available: boolean;
+  createdAt: string;
+}
+
+export interface Nameplate {
   id: Snowflake;
   name: string;
   description: string | null;

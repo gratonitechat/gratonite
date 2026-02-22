@@ -16,7 +16,7 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/';
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/app';
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

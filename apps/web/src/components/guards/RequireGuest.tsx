@@ -14,7 +14,7 @@ export function RequireGuest({ children }: RequireGuestProps) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   return <>{children}</>;

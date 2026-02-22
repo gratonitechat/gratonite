@@ -1,8 +1,79 @@
 # Gratonite — Development Progress
 
-> **Last updated:** 2026-02-20
-> **Current Phase:** Phase 8 — Web App Polish (COMPLETE — 9/9 tasks complete)
-> **Status:** Phase 8 complete: emoji picker fix, reactions sync, pinned/search/thread panels, settings page, integration pass.
+> **Last updated:** 2026-02-22
+> **Current Phase:** Phase 9 — Performance & Scale (IN PROGRESS)
+> **Status:** Perf instrumentation + MessageList virtualization complete. Voice/browser reliability hardening shipped with automated validation; final manual Safari/Zen validation deferred to beta cycle.
+
+### Recovery Track (Web-First Reset)
+
+- Priority order is now: **Web -> Desktop -> Mobile**
+- Source-of-truth execution plan: `docs/plans/2026-02-21-web-recovery-plan.md`
+- Active board: `docs/status/PROJECT-BOARD.md`
+- Web release gates: `docs/release/web-release-gates.md`
+- Web critical path matrix: `docs/qa/web-critical-path-matrix.md`
+- UI/UX modernization blueprint: `docs/plans/2026-02-21-ui-ux-modernization-blueprint.md`
+- UI/UX execution backlog: `docs/plans/2026-02-21-web-ui-ux-backlog.md`
+- Web finalization execution queue: `docs/plans/2026-02-21-web-finalization-queue.md`
+- Beta scope freeze (active): `docs/plans/2026-02-22-beta-scope-freeze.md`
+- Token architecture spec: `docs/design/2026-02-21-design-token-architecture.md`
+- Deterministic reset command: `pnpm test:reset`
+- Web release check command: `pnpm check:web`
+- WEB-016 implementation started: token v2 scaffold + runtime resolver/initializer added behind `VITE_UI_V2_TOKENS`
+- WEB-030 implementation started: streaming-style server gallery navigation foundation behind modern UI toggle
+- WEB-032 implementation started: server emoji management UX (settings emoji tab + emoji studio)
+- WEB-033 implementation started: markdown rendering in chat messages (safe parser, no HTML injection)
+- WEB-034 implementation started: Display Name Styles (profiles + accessibility + styled rendering)
+- WEB-035 implementation started: profile enhancements MVP (server tag + status + widgets)
+- WEB-037 implementation started: profile cosmetics shop UX (avatar decorations + profile effects + nameplates)
+- WEB-038 implementation started: nameplates backend catalog + equip APIs (cross-client persistence)
+- WEB-039 implementation started: file asset delivery reliability for cosmetics (`/api/v1/files/:hash` redirect resolver)
+- WEB-040/041/042 added to backlog: 2D Avatar Studio + wearable catalog + in-app earned currency loop
+- WEB-045/047/048 added to backlog: server onboarding templates + channel lifecycle UX + silent voice room entry
+- Added onboarding/lifecycle implementation spec: `docs/plans/2026-02-21-server-onboarding-and-channel-lifecycle.md`
+- WEB-014 implemented: Playwright runtime stability hardening (`reuseExistingServer=false` + API CORS allowlist parsing)
+- WEB-018 implemented: interaction primitive polish pack (button/input/modal/context-menu focus, keyboard, visual consistency)
+- WEB-045 implementation started: templated server creation flow with starter text/voice channels and invite handoff
+- WEB-045 implemented: templated server creation flow now creates starter channel sets and hands off invite generation in-modal
+- WEB-047 implementation started: channel lifecycle pass 1 shipped (private channel toggle + API view/connect enforcement, channel delete confirmation modal, owner-leave guard retained)
+- WEB-047 implemented pass 2: server settings now includes channel permission editor (private toggle + role/user visibility grants/removals)
+- WEB-048 implementation started: silent voice room entry UX pass 1 (silent join cues, call-state ring cleanup for guild joins, subtle presence feed)
+- WEB-019 implementation started: Theme Studio in Appearance settings (token overrides + JSON import/export + persisted manifests)
+- WEB-022 foundation pass: reduced-motion guardrails now integrated with v2 theme motion dataset
+- Core modernization pass applied across shell surfaces (sidebar/topbar/composer/modals/settings) with tokenized motion primitives and v2 visual consistency updates
+- Added web E2E coverage for channel lifecycle + silent voice entry (`tests/e2e/channel-lifecycle.spec.ts`) and full suite now passing 7/7
+- WEB-031 implemented: server gallery media controls shipped (fill/fit mode toggle, animated banner on/off preference, deterministic fallback badges/palette, e2e coverage)
+- WEB-036 implementation advanced: moderation guardrails tightened (reason-code validation, transition enforcement, centralized error mapping) + new schema/service tests
+- WEB-040 implemented foundation: local avatar studio model + deterministic sprite renderer + profile/settings integration with opt-in fallback behavior
+- WEB-041 implementation advanced: wardrobe card UX with preview/hover interactions and slot-based equip persistence
+- WEB-042 hardening implemented: soft-currency economy now includes daily earn caps, spend flow (`/economy/spend`) with insufficient-funds guards, auditor ledger route (`/economy/audit/users/:userId/ledger`), expanded schema tests, and settings spend action
+- WEB-028 progress: added keyboard/accessibility smoke test (`tests/e2e/accessibility.spec.ts`) and checklist doc (`docs/qa/web-accessibility-checklist.md`)
+- WEB-027/029 planning artifacts added: visual regression plan (`docs/qa/web-visual-regression-plan.md`) and performance budgets (`docs/qa/web-performance-budgets.md`)
+- WEB-036 integration e2e lifecycle enabled and passing (`tests/e2e/community-shop.spec.ts`) after migration parity reset (`pnpm db:migrate`)
+- WEB-027 visual baseline implemented: `tests/e2e/visual.spec.ts` + snapshot baselines + `e2e:visual` command
+- Expanded web QA run now passing for accessibility/channel lifecycle/community-shop/visual suites in one sequential invocation
+- Docker daemon recovery completed for this environment (Colima restarted; compose services healthy for test runs)
+- WEB-029 implemented: runtime interaction paint telemetry markers for `channel_switch` and `message_send_local_echo` (`apps/web/src/lib/perf.ts` + wired callers)
+- WEB-028 evidence expanded: accessibility suite now validates reduced-motion guardrails and shell contrast threshold
+- Fresh web hardening pass complete on 2026-02-22:
+  - `pnpm check:web` PASS
+  - `pnpm --filter @gratonite/web e2e -- tests/e2e/accessibility.spec.ts tests/e2e/channel-lifecycle.spec.ts tests/e2e/community-shop.spec.ts tests/e2e/visual.spec.ts` PASS (8/8)
+- Next execution batch complete on 2026-02-22 (from `docs/plans/2026-02-22-web-next-30-queue.md`):
+  - WEB-039 regression: DM list now reorders in realtime by latest message activity (store updates on `MESSAGE_CREATE`) with targeted Playwright coverage.
+  - Portal terminology pass applied on remaining high-visibility settings/modals/profile surfaces.
+  - Added portal gallery keyboard-only accessibility regression coverage.
+  - Added avatar sprite fallback regression coverage for message surfaces.
+  - Visual regression expanded with composer attachment-state baseline (`visual-composer-attachment-chromium-darwin.png`).
+- Additional execution batch complete on 2026-02-22:
+  - Portal Gallery pass 2 shipped: search, sort, favorites persistence, and direct-message jump action.
+  - Voice/video overlay hardening shipped: control disabled/pressed semantics, popover close behavior, and pending screenshare tile state.
+  - Avatar Studio polish shipped: randomize/reset controls, expanded color controls, and sprite rendering in user bar + member list (self).
+  - Composer UX polish shipped: clear-all attachment queue action + stronger remove affordances.
+  - Added dedicated attachment upload telemetry marker (`attachment_upload`) in composer critical path.
+  - Validation evidence added:
+    - `pnpm check:web` PASS
+    - `playwright` hardening pack PASS (11/11)
+    - targeted messaging delta pack PASS (3/3)
+- Remaining manual evidence before external beta: screen-reader walkthrough capture for critical path
 
 ### Completed This Session (Phase 8: Web App Polish)
 
@@ -52,6 +123,78 @@
 ### Remaining Phase 8 Tasks
 
 None — Phase 8 is complete.
+
+### Phase 9 — Performance & Scale (IN PROGRESS)
+
+**Completed so far:**
+- Web perf instrumentation (app boot timing + React Profiler for MessageList/ChannelSidebar/MemberList)
+- MessageList virtualization for large channels
+- API slow request logging (>=200ms)
+- Real-time joins for DM/guild rooms in SocketProvider
+- API index pass 1 completed for hot reads (`messages` search filters + `guild_members` list/membership lookups)
+- API hotspot pass 2 started: repeatable EXPLAIN benchmark (`pnpm check:api-hotspots`) + Redis cache/invalidation for guild members + guild/channel metadata reads
+- API cache behavior now has automated test coverage (`apps/api/src/modules/*/*.service.test.ts`)
+- API runtime cache smoke check added and passing (`pnpm check:api-cache-smoke`)
+- Phase C API checks wired into CI (`api-phase-c` job in `.github/workflows/pr-ci.yml`)
+- Voice preflight hardening pass shipped (mic-first preflight + media fallback/retry helper + improved media error mapping)
+- WEB-016 scaffold pass implemented:
+  - `apps/web/src/theme/tokens-v2.ts`
+  - `apps/web/src/theme/resolveTheme.ts`
+  - `apps/web/src/theme/initTheme.ts`
+  - feature flag activation in `apps/web/src/main.tsx`
+  - semantic token bridge in `apps/web/src/styles.css` (`:root[data-theme-v2='true']`)
+  - Settings toggle added for preview enable/disable (`apps/web/src/pages/SettingsPage.tsx`)
+  - First shell-level glass/motion visual pass added behind v2 theme flag
+- WEB-030 server gallery foundation implemented:
+  - Added `apps/web/src/components/home/ServerGallery.tsx`
+  - Home now renders gallery in v2 mode (`apps/web/src/pages/HomePage.tsx`)
+  - Added responsive gallery card/hover styles in `apps/web/src/styles.css`
+  - Uses existing guild banner/icon/description/member count data
+- WEB-032 server emoji management UX implemented:
+  - Added server settings modal with emoji tab and static/animated slot counts
+  - Added emoji studio modal for upload with server selection, naming, and basic zoom/rotate controls
+  - Added emoji API client methods (`getEmojis`, `createEmoji`, `deleteEmoji`)
+  - Added `Add Emoji` entry point in emoji picker for guild channels/threads
+- WEB-033 markdown chat rendering implemented:
+  - Added safe markdown renderer for message content (`MarkdownText`)
+  - Supports headers (`#`, `##`, `###`), masked links (`[text](url)`), bullet lists (`-`, `*`), block quotes (`>`), inline code (`` `code` ``), and fenced code blocks (```).
+  - Integrated into grouped + standard message rows and styled for readability
+- WEB-034 Display Name Styles web MVP implemented:
+  - Added Profiles settings editor for font/effect/colors with Change Style + Surprise Me + light/dark preview
+  - Added Accessibility toggle to enable/disable Display Name Styles globally
+  - Added reusable styled display-name renderer across message author, member list, user bar, and profile popover
+  - Implemented server-context behavior (font-only) and DM message behavior (full effects on hover)
+- WEB-035 profile enhancements MVP implemented:
+  - Added Server Tag selector in Profiles settings and clickable tag badge near message display names
+  - Added status thought bubble message with configurable expiry (1h, 4h, today, never)
+  - Added simple profile widgets list (favorites/backlog tags) displayed in profile popover
+  - Added local persistence + live update subscriptions for profile enhancement state
+- WEB-036 community shop items planning created:
+  - `docs/plans/2026-02-21-community-shop-items.md` (upload, moderation, install scopes, rollout)
+- WEB-037 profile cosmetics shop UX implemented (web MVP):
+  - Added Shop Cosmetics panel in Profiles settings with catalog preview/equip for avatar decorations + profile effects
+  - Added API-backed nameplate catalog/equip and live rendering behind display names
+  - Added avatar decoration frame rendering in user bar/message avatar (self) and profile popover
+  - Added profile effect layer rendering in profile popover + settings profile card
+  - Added DB migration for `nameplates` table + `user_profiles.nameplate_id`
+- WEB-038/039 cosmetics hardening completed:
+  - Fixed web cosmetics API client routes to match backend endpoints (`/avatar-decorations`, `/profile-effects`, `/nameplates`, `/users/@me/customization`)
+  - Added backend hash-asset resolver on `GET /api/v1/files/:fileId` for image hash requests, redirecting to CDN/MinIO object URLs
+  - Seeded default avatar decorations/profile effects/nameplates catalog rows in migration `0008_sudden_nameplates.sql`
+  - Added reproducible placeholder asset seeding command: `pnpm --filter @gratonite/api seed:cosmetics-assets`
+
+**In progress / blockers:**
+- Manual Safari/Zen cross-browser voice validation is deferred to final beta cycle (by priority decision)
+- Beta scope freeze now has a single hard blocker remaining: queue item `80` (first Oracle Cloud staging dry-run deployment).
+- Queue item `15` is complete (mobile viewport DM attachment URL safety regression added and passing).
+- Oracle dry-run preflight is complete locally (infra + API smoke + focused realtime/media/voice E2E); full OCI hostname pass remains pending cloud credentials/DNS.
+- Hosting cutover blocker completed on Hetzner (provider changed from Oracle): public TLS is live on `gratonite.chat` and `api.gratonite.chat`, with API prod + contract smoke passing.
+
+**Remaining Phase 9 tasks:**
+- Identify slow API endpoints and add indexes/caching for hot reads (guilds/channels/members/messages/search)
+- Validate MessageList perf with 1k+ message channels and tune overscan/row sizing
+- CDN/media caching plan and scale checklist (horizontal scaling + Redis adapter)
+- Finalize voice channel UX: participant list, speaking state, stable device selection
 
 ### Previous Sessions
 - **Phase 7B** (COMPLETE): Call audio, screen share, DND, desktop polish, permission refactor

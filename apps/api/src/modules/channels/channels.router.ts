@@ -17,12 +17,20 @@ export function channelsRouter(ctx: AppContext): Router {
   // Get all channels for a guild
   router.get('/guilds/:guildId/channels', auth, async (req, res) => {
     const guildId = req.params.guildId;
-    if (!await guildsService.isMember(guildId, req.user!.userId)) {
+    const userId = req.user!.userId;
+    if (!await guildsService.isMember(guildId, userId)) {
       return res.status(403).json({ code: 'NOT_A_MEMBER' });
     }
 
     const guildChannels = await channelsService.getGuildChannels(guildId);
-    res.json(guildChannels);
+    const visible = await Promise.all(
+      guildChannels.map(async (channel) => {
+        const allowed = await channelsService.canAccessChannel(channel.id, userId);
+        return allowed ? channel : null;
+      }),
+    );
+
+    res.json(visible.filter((channel) => channel !== null));
   });
 
   // Create channel in guild
@@ -82,6 +90,10 @@ export function channelsRouter(ctx: AppContext): Router {
     if (channel.guildId) {
       if (!await guildsService.isMember(channel.guildId, req.user!.userId)) {
         return res.status(403).json({ code: 'NOT_A_MEMBER' });
+      }
+
+      if (!await channelsService.canAccessChannel(channel.id, req.user!.userId)) {
+        return res.status(403).json({ code: 'FORBIDDEN' });
       }
     }
 
@@ -155,6 +167,9 @@ export function channelsRouter(ctx: AppContext): Router {
   router.get('/channels/:channelId/permissions', auth, async (req, res) => {
     const channel = await channelsService.getChannel(req.params.channelId);
     if (!channel) return res.status(404).json({ code: 'NOT_FOUND' });
+    if (channel.guildId && !await guildsService.isMember(channel.guildId, req.user!.userId)) {
+      return res.status(403).json({ code: 'NOT_A_MEMBER' });
+    }
 
     const overrides = await channelsService.getPermissionOverrides(req.params.channelId);
     res.json(overrides);
